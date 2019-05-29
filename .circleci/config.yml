@@ -1,0 +1,51 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/node:8.10
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package.json" }}
+            - v1-dependencies-
+      - run: yarn install
+      - save_cache:
+          paths:
+            - node_modules
+          key: v1-dependencies-{{ checksum "package.json" }}
+      - run: yarn build
+      - persist_to_workspace:
+          root: .vuepress
+          paths: dist
+
+  deploy:
+    docker:
+      - image: circleci/node:8.10
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - attach_workspace:
+          at: workspace
+      - run:
+          name: Install gh-pages
+          command: |
+            sudo npm install -g --silent gh-pages@2.0.1
+            git config --global user.email $GIT_EMAIL
+            git config --global user.name $GIT_NAME
+      - add_ssh_keys:
+          fingerprints:
+            - "16:8c:a6:a2:84:8e:0f:90:c0:97:37:20:ea:dc:f5:33"
+      - run:
+          name: Deploy docs to master branch
+          command: gh-pages --branch master --message "[skip ci] Deploy" --dist workspace/dist
+
+workflows:
+  version: 2
+  build-deploy:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
